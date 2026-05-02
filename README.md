@@ -6,14 +6,14 @@ A Streamlit app for ML-powered laptop price prediction with a cyberpunk/tech-noi
 
 ```
 laptop_pricer/
-├── app.py                  # Entry point — handles routing & global CSS
-├── model.pkl               # ← Place your trained pipeline here
+├── app.py
+├── model.pkl
 ├── requirements.txt
 └── pages/
     ├── __init__.py
-    ├── overview.py         # Home page
-    ├── technicals.py       # ML pipeline deep-dive
-    └── predictor.py        # Input form + inference
+    ├── overview.py
+    ├── technicals.py
+    └── predictor.py
 ```
 
 ## Setup
@@ -24,10 +24,7 @@ pip install -r requirements.txt
 
 ## Add your model
 
-Copy your trained `model.pkl` into the `laptop_pricer/` root directory (same level as `app.py`).
-
 The model must accept a `pd.DataFrame` with these columns:
-
 | Column | Type | Example |
 |---|---|---|
 | `in_stock` | bool | `True` |
