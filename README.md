@@ -57,11 +57,3 @@ The model must accept a `pd.DataFrame` with these columns:
 ```bash
 streamlit run app.py
 ```
-
-## Deploy to Streamlit Cloud
-
-1. Push this folder to a GitHub repository
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repo, set **Main file path** to `app.py`
-4. Add `model.pkl` to the repo (or use Streamlit Secrets / cloud storage for large files)
-5. Deploy!
