@@ -10,6 +10,7 @@ laptop_pricer/
 ├── model.pkl
 ├── requirements.txt
 └── pages/
+    ├── functions.py
     ├── __init__.py
     ├── overview.py
     ├── technicals.py
