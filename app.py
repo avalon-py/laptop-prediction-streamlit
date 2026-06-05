@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="LAPTOP_PRICER.V1",
+    page_title="Laptop Price Prediction",
     page_icon="💻",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -41,19 +41,18 @@ div[data-testid="stToolbar"] { display: none !important; }
 }
 
 /* Sidebar buttons - transparent ghost style */
+/* Sidebar buttons - Smaller by default */
 [data-testid="stSidebar"] [data-testid="stButton"] > button {
     background: transparent !important;
     color: #849396 !important;
     border: 1px solid transparent !important;
     border-radius: 4px !important;
     font-family: 'Space Grotesk', sans-serif !important;
-    font-size: 13px !important;
+    font-size: 11px !important; /* Slightly smaller font */
     font-weight: 400 !important;
-    letter-spacing: 0.02em !important;
-    padding: 0.5rem 1rem !important;
+    padding: 0.3rem 0.8rem !important; /* Reduced padding */
     width: 100% !important;
-    box-shadow: none !important;
-    margin-bottom: 2px !important;
+    transition: all 0.2s ease; /* Smooth transition */
 }
 [data-testid="stSidebar"] [data-testid="stButton"] > button:hover {
     background: rgba(0,229,255,0.06) !important;
@@ -157,19 +156,19 @@ with st.sidebar:
     <div style="padding:1.25rem 1.25rem 0.75rem; border-bottom:1px solid rgba(0,229,255,0.15); margin-bottom:0.75rem;">
         <div style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;
                     color:#00e5ff; text-shadow:0 0 8px rgba(0,229,255,0.4); letter-spacing:-0.02em;">
-            LAPTOP_PRICER.V1
+            Laptop Price Prediction
         </div>
         <div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#3b494c;
-                    letter-spacing:0.12em; margin-top:3px;">ENSEMBLE_ML_ENGINE</div>
+                    letter-spacing:0.12em; margin-top:3px;">Ensemble Learning: Stacking with XGBoost, LGBM, CATBoost -> RidgeCV</div>
     </div>
     <div style="padding:0 1.25rem 0.5rem; font-family:'JetBrains Mono',monospace; font-size:9px;
                 color:#3b494c; letter-spacing:0.12em;">NAVIGATION</div>
     """, unsafe_allow_html=True)
 
     pages = [
-        ("overview",   "🏠  Overview"),
-        ("technicals", "⚙️  Technicals"),
-        ("predictor",  "🎯  Predictor"),
+        ("overview",   "Overview"),
+        ("technicals", "Technicals"),
+        ("predictor",  "Predictor"),
     ]
 
     for key, label in pages:
@@ -177,12 +176,14 @@ with st.sidebar:
         if is_active:
             # Active: styled div, no button (no click needed - already here)
             st.markdown(f"""
-            <div style="padding:0.5rem 1rem; margin:0 0.75rem 4px;
-                        background:rgba(0,229,255,0.1); border:1px solid rgba(0,229,255,0.3);
-                        border-radius:4px; font-family:'Space Grotesk',sans-serif;
-                        font-size:13px; font-weight:600; color:#00e5ff; letter-spacing:0.02em;">
+            <div style="padding:0.7rem 1rem; margin:0 0.5rem 6px;
+                        background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.4);
+                        border-radius:6px; font-family:'Space Grotesk',sans-serif;
+                        font-size:14px; font-weight:700; color:#00e5ff; 
+                        letter-spacing:0.02em; text-align: center;
+                        box-shadow: 0 0 15px rgba(0,229,255,0.1);">
                 {label}
-            </div>""", unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)        
         else:
             if st.button(label, key=f"nav_{key}", use_container_width=True):
                 st.session_state.page = key
@@ -191,9 +192,10 @@ with st.sidebar:
     st.markdown("""
     <div style="margin-top:2rem; padding:1rem 1.25rem 0; border-top:1px solid rgba(0,229,255,0.1);">
         <div style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#3b494c; line-height:1.8;">
-            SYS_STATUS: NOMINAL<br/>
-            MODEL: ENSEMBLE_V3<br/>
-            LATENCY: 14ms
+            By:<br/>
+            Stefano B. - 2802402464<br/>
+            M. Alvin - 2802402501<br/>
+            Joel C. - 2802404450
         </div>
     </div>
     """, unsafe_allow_html=True)
