@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 import math
 import time
@@ -36,6 +37,42 @@ def load_model():
                         est.n_jobs = 1
 
     return pipeline
+
+
+# ── CPU name list loader (cached) ─────────────────────────────────────────────
+@st.cache_data
+def load_cpu_names() -> list[str]:
+    txt_path = os.path.join(os.path.dirname(__file__), "..", "cpu_names.txt")
+    if not os.path.exists(txt_path):
+        return ["Intel Core i5-13420H"]   # fallback so UI never crashes
+    with open(txt_path, encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+# ── P90 latency benchmark ─────────────────────────────────────────────────────
+def measure_p90(pipeline, df: pd.DataFrame, n_runs: int = 100) -> dict:
+    """
+    Run pipeline.predict(df) n_runs times and return percentile latency stats.
+    The first call is a warm-up and is excluded from the measurement.
+    """
+    # Warm-up: the first sklearn predict call is always slower due to
+    # internal lazy initialisation; exclude it from the benchmark.
+    pipeline.predict(df)
+
+    durations_ms = []
+    for _ in range(n_runs):
+        t0 = time.perf_counter()
+        pipeline.predict(df)
+        durations_ms.append((time.perf_counter() - t0) * 1000)
+
+    return {
+        "p50_ms":  float(np.percentile(durations_ms, 50)),
+        "p90_ms":  float(np.percentile(durations_ms, 90)),
+        "p99_ms":  float(np.percentile(durations_ms, 99)),
+        "mean_ms": float(np.mean(durations_ms)),
+        "max_ms":  float(np.max(durations_ms)),
+    }
+
 
 # ── Gauge SVG ─────────────────────────────────────────────────────────────────
 def make_gauge(price: float, min_price: float = 1_000_000, max_price: float = 60_000_000) -> str:
@@ -104,49 +141,92 @@ def render():
     st.divider()
 
     # ── Brand & Identity ──────────────────────────────────────────────────
+    # model field in training data is the full "BRAND MODEL" string, e.g. "LENOVO IDEAPAD".
+    # We store a lookup so brand and model can be passed separately to the pipeline.
+    BRAND_MODEL_OPTIONS = [
+        ("LENOVO", "LENOVO IDEAPAD"), ("LENOVO", "LENOVO LEGION"), ("LENOVO", "LENOVO YOGA"),
+        ("LENOVO", "LENOVO LOQ"), ("LENOVO", "LENOVO V14"), ("LENOVO", "LENOVO THINKPAD"),
+        ("LENOVO", "LENOVO THINKBOOK"), ("LENOVO", "LENOVO V15"),
+        ("ASUS", "ASUS VIVOBOOK"), ("ASUS", "ASUS ZENBOOK"), ("ASUS", "ASUS EXPERTBOOK"),
+        ("ASUS", "ASUS ROG"), ("ASUS", "ASUS TUF"), ("ASUS", "ASUS GAMING"),
+        ("ACER", "ACER ASPIRE"), ("ACER", "ACER NITRO"), ("ACER", "ACER SWIFT"),
+        ("ACER", "ACER TRAVELMATE"), ("ACER", "ACER PREDATOR"),
+        ("AXIOO", "AXIOO HYPE"), ("AXIOO", "AXIOO HYPE-R"), ("AXIOO", "AXIOO PONGO"),
+        ("HP", "HP 14"), ("HP", "HP OMNIBOOK"), ("HP", "HP HYPERX"),
+        ("HP", "HP VICTUS"), ("HP", "HP PAVILION"), ("HP", "HP OMEN"),
+        ("MSI", "MSI MODERN"), ("MSI", "MSI THIN"), ("MSI", "MSI PRESTIGE"),
+        ("MSI", "MSI CYBORG"), ("MSI", "MSI KATANA"), ("MSI", "MSI CROSSHAIR"),
+        ("MSI", "MSI VECTOR"), ("MSI", "MSI VENTURE"),
+        ("ADVAN", "ADVAN WORKMATE"), ("ADVAN", "ADVAN SOULMATE"),
+        ("ADVAN", "ADVAN TBOOK"), ("ADVAN", "ADVAN WORKPLUS"), ("ADVAN", "ADVAN WORKPRO"),
+        ("IBOX", "IBOX APPLE"),
+        ("INFINIX", "INFINIX XBOOK"), ("INFINIX", "INFINIX INBOOK"),
+        ("ZYREX", "ZYREX D-TECH"), ("ZYREX", "ZYREX L-BOOK"),
+        ("AVITA", "AVITA PURA"),
+        ("TECNO", "TECNO MEGABOOK"),
+        ("SPC", "SPC LIFE"),
+        ("DELL", "DELL PRO"),
+    ]
+    MODEL_DISPLAY_LABELS = [m for _, m in BRAND_MODEL_OPTIONS]
+
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">BRAND &amp; IDENTITY</p>', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+    c1, c2 = st.columns([4, 1])
     with c1:
-        brand = st.selectbox("Brand", ["Apple", "ASUS", "Dell", "HP", "Lenovo", "MSI",
-                                        "Acer", "Samsung", "Razer", "Huawei", "Microsoft"], index=0, label_visibility="collapsed")
+        model_idx = st.selectbox("Laptop Model", range(len(MODEL_DISPLAY_LABELS)),
+                                  format_func=lambda i: MODEL_DISPLAY_LABELS[i], index=0)
+        brand, model_name = BRAND_MODEL_OPTIONS[model_idx]
     with c2:
-        model_name = st.selectbox("Model", ["Pro", "Air", "Ultra", "Gaming", "ZenBook",
-                                                "ThinkPad", "XPS", "Spectre", "Blade",
-                                                "MateBook", "Surface"], index=0, label_visibility="collapsed")
-    with c3:
-        in_stock = st.checkbox("In Stock", value=True)
-    with c4:
-        warranty_years = st.number_input("Warranty (yrs)", min_value=0, max_value=5, value=2, step=1)
+        warranty_years = st.number_input("Warranty (yrs)", min_value=1, max_value=3, value=1, step=1)
+    in_stock = True  # hardcoded; field removed from UI
 
     st.markdown('<hr style="border-color:rgba(0,229,255,0.08);margin:0.6rem 0;"/>', unsafe_allow_html=True)
 
     # ── CPU ───────────────────────────────────────────────────────────────
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">CPU</p>', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns([2, 2, 1, 3])
-    with c1:
-        cpu_brand = st.selectbox("CPU Brand", ["Intel", "AMD", "Apple"], index=0, label_visibility="collapsed")
-    with c2:
-        cpu_tier = st.selectbox("CPU Tier", ["Core i9", "Core i7", "Core i5", "Core i3",
-                                                "Ryzen 9", "Ryzen 7", "Ryzen 5", "M4", "M3",
-                                                "M2", "M1"], index=0, label_visibility="collapsed")
-    with c3:
-        cpu_gen = st.number_input("Gen", min_value=1, max_value=20, value=13, step=1)
-    with c4:
-        cpu_name = st.text_input("CPU Name", value="Intel Core i9-13620H",
-                                    placeholder="e.g. Intel Core i9-13620H", label_visibility="collapsed")
+    cpu_name = st.selectbox("CPU", load_cpu_names(), index=0)
 
     st.markdown('<hr style="border-color:rgba(0,229,255,0.08);margin:0.6rem 0;"/>', unsafe_allow_html=True)
 
     # ── GPU ───────────────────────────────────────────────────────────────
+    # ⚠ GPU options could not be audited from training data — review gpu_model and gpu_vram
+    # value_counts() from your dataset and trim this list to only seen values.
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">GPU</p>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        gpu_model = st.selectbox("GPU Model", ["RTX 5090", "RTX 5080", "RTX 5070", "RTX 5060",
-                                                "RTX 4090", "RTX 4080", "RTX 4070", "RTX 4060",
-                                                "RTX 3080", "RTX 3070", "RX 7900M",
-                                                "Intel Arc", "Integrated"], index=2, label_visibility="collapsed")
+        gpu_model = st.selectbox("GPU Model", [
+            "Intel UHD",
+            "Radeon Graphics",
+            "Arc Graphics",
+            "RTX 5060",
+            "RTX 5050",
+            "Iris Xe",
+            "RTX 3050",
+            "RTX 5070",
+            "RTX 4050",
+            "Apple M-Series GPU",
+            "Radeon 610M",
+            "Adreno GPU",
+            "Radeon 660M",
+            "Radeon 680M",
+            "Radeon 820M",
+            "Arc 140T",
+            "Radeon 860M",
+            "Arc 130T",
+            "RTX 2050",
+            "Radeon RX",
+            "Radeon 840M",
+            "Unknown",
+            "RTX 4060",
+            "RTX 5090",
+            "Arc 140V",
+            "Radeon 780M",
+            "Arc 130V",
+            "Radeon 8060S",
+            "RTX 5080",
+            "Radeon 740M",
+        ], index=0)
     with c2:
-        gpu_vram = st.selectbox("GPU VRAM", ["24GB", "16GB", "12GB", "8GB", "6GB", "4GB", "Shared"], index=3, label_visibility="collapsed")
+        gpu_vram = st.selectbox("GPU VRAM", ["16GB", "12GB", "8GB", "6GB", "4GB", "Shared"], index=5)
 
     st.markdown('<hr style="border-color:rgba(0,229,255,0.08);margin:0.6rem 0;"/>', unsafe_allow_html=True)
 
@@ -154,14 +234,14 @@ def render():
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">MEMORY &amp; STORAGE</p>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        ram_gb = st.selectbox("RAM GB", [8, 16, 24, 32, 48, 64, 96, 128], index=3, label_visibility="collapsed")
+        ram_gb = st.selectbox("RAM Size", [4, 8, 12, 16, 24, 32, 64], index=3)
     with c2:
         ram_type = st.selectbox("RAM Type", ["DDR5", "DDR4", "LPDDR5X", "LPDDR5",
-                                                "LPDDR4X", "LPDDR4", "Unified"], index=0, label_visibility="collapsed")
+                                                "LPDDR4", "LPDDR4X", "DDR5X"], index=0)
     with c3:
-        storage_gb = st.selectbox("Storage GB", [256, 512, 1000, 2000, 4000, 8000], index=3, label_visibility="collapsed")
+        storage_gb = st.selectbox("Storage Size", [128, 256, 512, 1000, 2000], index=2)
     with c4:
-        storage_type = st.selectbox("Storage Type", ["SSD", "NVMe", "HDD", "eMMC"], index=0, label_visibility="collapsed")
+        storage_type = st.selectbox("Storage Type", ["SSD", "NVME", "EMMC"], index=0)
 
     st.markdown('<hr style="border-color:rgba(0,229,255,0.08);margin:0.6rem 0;"/>', unsafe_allow_html=True)
 
@@ -169,14 +249,16 @@ def render():
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">DISPLAY</p>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 2])
     with c1:
-        display_size = st.number_input("Size\"", min_value=10.0, max_value=18.0,
+        display_size = st.number_input("Size (inches)", min_value=10.0, max_value=18.0,
                                         value=14.0, step=0.1, format="%.1f")
     with c2:
-        display_type = st.selectbox("Panel", ["OLED", "Mini LED", "IPS", "TN",
-                                                "AMOLED", "LCD"], index=0, label_visibility="collapsed")
+        display_type = st.selectbox("Panel Type", ["IPS", "OLED", "TN", "Mini LED"], index=0)
     with c3:
-        display_resolution = st.text_input("Resolution", value="2560x1600",
-                                            placeholder="e.g. 2560x1600", label_visibility="collapsed")
+        display_resolution = st.selectbox("Resolution", [
+            "1920x1080", "1920x1200", "2560x1600", "2880x1800",
+            "1366x768", "2560x1664", "3024x1964", "2560x1440",
+            "3000x1876", "3840x2400",
+        ], index=0)
 
     st.markdown('<hr style="border-color:rgba(0,229,255,0.08);margin:0.6rem 0;"/>', unsafe_allow_html=True)
 
@@ -184,32 +266,26 @@ def render():
     st.markdown('<p style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:#00e5ff;letter-spacing:0.12em;margin-bottom:0.4rem;">OS &amp; PHYSICAL</p>', unsafe_allow_html=True)
     c1, c2 = st.columns([2, 3])
     with c1:
-        os_version = st.selectbox("OS", ["Windows 11", "Windows 11 Pro", "Windows 10",
-                                            "macOS", "Linux", "Chrome OS", "No OS"],
-                                    index=0, label_visibility="collapsed")
+        os_version = st.selectbox("OS Version", ["Windows 11", "DOS", "macOS"], index=0)
     with c2:
         os_benefits = st.multiselect(
             "OS Benefits",
-            ["Microsoft 365", "Office Home & Student", "Office Professional",
-                "McAfee", "Norton", "Xbox Game Pass", "None"],
-            default=["Microsoft 365", "Office Home & Student"],
-            label_visibility="collapsed",
+            ["Microsoft 365", "Office Home & Student", "Office Home"],
+            default=[],
         )
 
     c1, c2 = st.columns(2)
     with c1:
-        battery_wh = st.number_input("Battery (Wh)", min_value=20.0, max_value=200.0,
-                                        value=60.0, step=1.0)
+        battery_wh = st.number_input("Battery (Wh)", min_value=0.0, value=45.0, step=1.0)
     with c2:
-        weight_kg = st.number_input("Weight (kg)", min_value=0.5, max_value=5.0,
-                                    value=1.39, step=0.01, format="%.2f")
+        weight_kg = st.number_input("Weight (kg)", min_value=0.0, value=1.8, step=0.01, format="%.2f")
 
     st.markdown("<br/>", unsafe_allow_html=True)
     run = st.button("⚡  EXECUTE_PREDICTION", key="predict_btn", use_container_width=True)
 
     # ── Run prediction ────────────────────────────────────────────────────────
     predicted_price = None
-    latency_ms = None
+    latency_stats = None
 
     if run:
         if pipeline is None:
@@ -232,32 +308,24 @@ def render():
                 "os_benefits":        os_benefits if os_benefits else [],
                 "gpu_model":          gpu_model,
                 "gpu_vram":           gpu_vram,
-                "cpu_name":           cpu_name,
                 "warranty_years":     int(warranty_years),
-                "cpu_brand":          cpu_brand,
-                "cpu_tier":           cpu_tier,
-                "cpu_gen":            int(cpu_gen),
+                "cpu_name":           cpu_name,
             }
             df = pd.DataFrame([user_input])
 
-            import cProfile, pstats, io
+            # Run P90 benchmark (100 timed runs after a warm-up)
+            with st.spinner("Benchmarking inference latency (100 runs)…"):
+                latency_stats = measure_p90(pipeline, df, n_runs=100)
 
-            # Pre-transform manually then predict — skip pipeline's pandas path
-            pr = cProfile.Profile()
-            pr.enable()
-            t0 = time.perf_counter()
+            # Final prediction (already done inside measure_p90, just grab the value)
             predicted_price = pipeline.predict(df)[0]
-            pr.disable()
-            latency_ms = (time.perf_counter() - t0) * 1000
 
-            s = io.StringIO()
-            ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-            ps.print_stats(15)
-            st.code(s.getvalue())
+    # ── Result banner ─────────────────────────────────────────────────────────
+    if predicted_price is not None and latency_stats is not None:
+        p90 = latency_stats["p90_ms"]
+        latency_color = "#00e5ff" if p90 < 100 else "#ff6b6b"
+        target_label  = "✓ TARGET_MET" if p90 < 100 else "✗ OVER_BUDGET"
 
-    # ── Summary banner ────────────────────────────────────────────────────────
-    if predicted_price is not None:
-        latency_color = "#00e5ff" if latency_ms < 100 else "#ff6b6b"
         st.markdown(f"""
 <div style="padding:1rem 1.5rem;border-left:3px solid #00e5ff;
             background:rgba(0,229,255,0.04);border-radius:4px;margin-top:1rem;
@@ -271,34 +339,60 @@ def render():
             <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#849396;">estimated market value</span>
         </div>
         <div style="margin-top:0.25rem;font-family:'JetBrains Mono',monospace;font-size:9px;color:#3b494c;">
-            {brand} {model_name} · {cpu_tier} Gen{cpu_gen} · {gpu_model} · {ram_gb}GB {ram_type} · {int(storage_gb)}GB {storage_type} · {display_size}"
+            {brand} {model_name} · {cpu_name} · {gpu_model} · {ram_gb}GB {ram_type} · {int(storage_gb)}GB {storage_type} · {display_size}"
         </div>
     </div>
     <div style="text-align:right;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#3b494c;margin-bottom:2px;">INFERENCE_LATENCY</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#3b494c;margin-bottom:2px;">P90_LATENCY</div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:{latency_color};">
-            {latency_ms:.1f}<span style="font-size:11px;">ms</span>
+            {p90:.1f}<span style="font-size:11px;">ms</span>
         </div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#3b494c;">
-            {'✓ TARGET_MET' if latency_ms < 100 else '✗ OVER_BUDGET'}
-        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#3b494c;">{target_label}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # ── Latency breakdown table ───────────────────────────────────────────
+        st.markdown("<br/>", unsafe_allow_html=True)
+        st.markdown("""
+<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#3b494c;
+            letter-spacing:0.15em;margin-bottom:0.75rem;">// LATENCY_BREAKDOWN (n=100 runs, excl. warm-up)</div>
+""", unsafe_allow_html=True)
+
+        lc1, lc2, lc3, lc4, lc5 = st.columns(5)
+        metrics = [
+            ("P50 (MEDIAN)", latency_stats["p50_ms"]),
+            ("P90",          latency_stats["p90_ms"]),
+            ("P99",          latency_stats["p99_ms"]),
+            ("MEAN",         latency_stats["mean_ms"]),
+            ("MAX",          latency_stats["max_ms"]),
+        ]
+        for col, (label, val) in zip([lc1, lc2, lc3, lc4, lc5], metrics):
+            color = "#ff6b6b" if label == "P90" and val >= 100 else "#00e5ff"
+            with col:
+                st.markdown(f"""
+<div style="background:rgba(22,32,49,0.7);border:1px solid rgba(0,229,255,0.2);
+            border-radius:4px;padding:0.75rem;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:#3b494c;
+                letter-spacing:0.1em;margin-bottom:6px;">{label}</div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:{color};">
+        {val:.1f}<span style="font-size:10px;color:#849396;">ms</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
     # ── Footer ────────────────────────────────────────────────────────────────
     st.markdown("<br/>", unsafe_allow_html=True)
-    latency_str = f"{latency_ms:.1f}ms" if latency_ms is not None else "—"
-    st.markdown(f"""
-<div style="border-top:1px solid rgba(0,229,255,0.08);padding-top:1rem;
-            display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-    <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:9px;color:#00e5ff;">
-        © 2024 HARDWARE_ARCH_SYS | LATENCY: {latency_str}
-    </span>
-    <div style="display:flex;gap:1.5rem;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#3b494c;">BS4_Scraper</span>
-        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#3b494c;">Ensemble_Core</span>
-        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#3b494c;">Optuna_Log</span>
+    st.markdown("""
+    <div style="border-top:1px solid rgba(0,229,255,0.1); padding-top:1.5rem;
+                display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:10px; color:#00e5ff;">
+            © Machine Learning AOL (Assurance of Learning) Project | Stefano, Alvin, Joel.
+        </span>
+        <div style="display:flex; gap:2rem;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#3b494c;">WebScrapping</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#3b494c;">Ensemble</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#3b494c;">Optuna</span>
+        </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
