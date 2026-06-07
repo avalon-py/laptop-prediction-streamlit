@@ -1,4 +1,4 @@
-# LAPTOP_PRICER.V1
+# Laptop Price Prediction
 
 A Streamlit app for ML-powered laptop price prediction with a cyberpunk/tech-noir UI.
 
