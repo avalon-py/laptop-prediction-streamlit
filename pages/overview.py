@@ -116,11 +116,7 @@ def render():
             <div style="background:rgba(2,8,20,0.5); padding:0.75rem; border:1px solid rgba(0,229,255,0.2); border-radius:4px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                     <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#3b494c;">MODEL_R2</span>
-                    <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#00e5ff;">0.9413</span>
-                </div>
-                <div style="background:#0f172a; height:4px; border-radius:2px; overflow:hidden;">
-                    <div style="background:#00e5ff; width:94.13%; height:100%;
-                                box-shadow:0 0 8px rgba(0,229,255,0.6);"></div>
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#00e5ff;">0.9129</span>
                 </div>
             </div>
         </div>
