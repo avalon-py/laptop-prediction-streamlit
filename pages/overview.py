@@ -42,17 +42,17 @@ def render():
     with m1:
         st.metric("ENTRIES_SCRAPED", "583")
     with m2:
-        st.metric("MODEL_R2", "0.9413")
+        st.metric("MODEL_R2", "0.9129")
     with m3:
-        st.metric("MODEL_MAE", "Rp 1,094,028.8786")
+        st.metric("MODEL_MAE", "Rp 1,220,121.1845")
 
     m4, m5, m6 = st.columns(3)
     with m4:
-        st.metric("MODEL_RMSE", "Rp 1,945,538.6994")
+        st.metric("MODEL_RMSE", "Rp 2,120,463.7924 ")
     with m5:
-        st.metric("MODEL_MAPE", "6.67%")
+        st.metric("MODEL_MAPE", "8.46% ")
     with m6:
-        st.metric("LATENCY", "14ms")
+        st.metric("LATENCY", "~16-22ms")
 
     st.markdown("<br/>", unsafe_allow_html=True)
     st.divider()
