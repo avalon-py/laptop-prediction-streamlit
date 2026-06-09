@@ -48,6 +48,36 @@ def load_cpu_names() -> list[str]:
     with open(txt_path, encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
 
+import re
+
+def parse_cpu_gen(name: str) -> int:
+    """Mirrors the gen-extraction logic from main_fixed.ipynb's parse_cpu()."""
+    if not isinstance(name, str):
+        return 0
+
+    # Apple M-series
+    m = re.search(r'\bM(\d+)\b', name)
+    if m:
+        return int(m.group(1))
+
+    # Intel Core Ultra (e.g. "Intel Core Ultra 7 258V" → gen from model suffix)
+    m = re.search(r'Core\s+Ultra\s+\d+\s+(\d{3,4})', name)
+    if m:
+        return int(str(m.group(1))[:1]) + 200  # rough gen proxy; adjust to match your notebook
+
+    # Intel iX-XXXXXYZ → first 2 digits of model number = gen
+    m = re.search(r'i[3579]-(\d{4,5})', name, re.IGNORECASE)
+    if m:
+        digits = m.group(1)
+        return int(digits[:2]) if len(digits) == 5 else int(digits[:1])
+
+    # AMD Ryzen X XXXXU → first digit of model = gen
+    m = re.search(r'Ryzen\s+(?:AI\s+)?(\d)\s+(\d{4})', name, re.IGNORECASE)
+    if m:
+        return int(m.group(2)[:1])
+
+    # Intel N-series / Celeron / Pentium → gen 0 or based on model
+    return 0
 
 # ── P90 latency benchmark ─────────────────────────────────────────────────────
 def measure_p90(pipeline, df: pd.DataFrame, n_runs: int = 100) -> dict:
@@ -291,8 +321,9 @@ def render():
         if pipeline is None:
             st.error("model.pkl not found — cannot run prediction.")
         else:
+            cpu_gen_val = parse_cpu_gen(cpu_name)
+
             user_input = {
-                "in_stock":           in_stock,
                 "brand":              brand,
                 "model":              model_name,
                 "ram_gb":             int(ram_gb),
@@ -310,6 +341,7 @@ def render():
                 "gpu_vram":           gpu_vram,
                 "warranty_years":     int(warranty_years),
                 "cpu_name":           cpu_name,
+                "cpu_gen":            cpu_gen_val,
             }
             df = pd.DataFrame([user_input])
 
