@@ -22,11 +22,11 @@ def render():
 
     col1, col2 = st.columns([1, 1], gap="medium")
     with col1:
-        if st.button("🚀 RUN PREDICTOR", key="hero_predict"):
+        if st.button("RUN PREDICTOR", key="hero_predict"):
             st.session_state.page = "predictor"
             st.rerun()
     with col2:
-        if st.button("📊 VIEW TECHNICALS", key="hero_tech"):
+        if st.button("VIEW TECHNICALS", key="hero_tech"):
             st.session_state.page = "technicals"
             st.rerun()
 
@@ -52,7 +52,7 @@ def render():
     with m5:
         st.metric("MODEL_MAPE", "8.46% ")
     with m6:
-        st.metric("LATENCY", "~16-22ms")
+        st.metric("LATENCY", "~65-75ms")
 
     st.markdown("<br/>", unsafe_allow_html=True)
     st.divider()
@@ -116,7 +116,11 @@ def render():
             <div style="background:rgba(2,8,20,0.5); padding:0.75rem; border:1px solid rgba(0,229,255,0.2); border-radius:4px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                     <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#3b494c;">MODEL_R2</span>
-                    <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#00e5ff;">0.9129</span>
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:9px; color:#00e5ff;">0.9413</span>
+                </div>
+                <div style="background:#0f172a; height:4px; border-radius:2px; overflow:hidden;">
+                    <div style="background:#00e5ff; width:94.13%; height:100%;
+                                box-shadow:0 0 8px rgba(0,229,255,0.6);"></div>
                 </div>
             </div>
         </div>
